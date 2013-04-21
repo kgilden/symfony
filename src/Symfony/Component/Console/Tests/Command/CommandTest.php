@@ -193,6 +193,29 @@ class CommandTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(3, $command->getDefinition()->getArgumentCount(), '->mergeApplicationDefinition() does not try to merge twice the application arguments and options');
     }
 
+    public function testMergeApplicationDefinitionWithoutArgsThenWithArgsAddsArgs()
+    {
+        $application1 = new Application();
+        $application1->getDefinition()->addArguments(array(new InputArgument('foo')));
+        $application1->getDefinition()->addOptions(array(new InputOption('bar')));
+        $command = new \TestCommand();
+        $command->setApplication($application1);
+        $command->setDefinition($definition = new InputDefinition(array()));
+
+        $r = new \ReflectionObject($command);
+        $m = $r->getMethod('mergeApplicationDefinition');
+        $m->setAccessible(true);
+        $m->invoke($command, false);
+        $this->assertTrue($command->getDefinition()->hasOption('bar'), '->mergeApplicationDefinition(false) merges the application and the commmand options');
+        $this->assertFalse($command->getDefinition()->hasArgument('foo'), '->mergeApplicationDefinition(false) does not merge the application arguments');
+
+        $m->invoke($command, true);
+        $this->assertTrue($command->getDefinition()->hasArgument('foo'), '->mergeApplicationDefinition(true) merges the application arguments and the command arguments');
+
+        $m->invoke($command);
+        $this->assertEquals(2, $command->getDefinition()->getArgumentCount(), '->mergeApplicationDefinition() does not try to merge twice the application arguments');
+    }
+
     public function testRun()
     {
         $command = new \TestCommand();
@@ -238,6 +261,31 @@ class CommandTest extends \PHPUnit_Framework_TestCase
         $tester = new CommandTester($command);
         $tester->execute(array());
         $this->assertEquals('interact called'.PHP_EOL.'from the code...'.PHP_EOL, $tester->getDisplay());
+    }
+
+    public function testSetCodeWithNonClosureCallable()
+    {
+        $command = new \TestCommand();
+        $ret = $command->setCode(array($this, 'callableMethodCommand'));
+        $this->assertEquals($command, $ret, '->setCode() implements a fluent interface');
+        $tester = new CommandTester($command);
+        $tester->execute(array());
+        $this->assertEquals('interact called'.PHP_EOL.'from the code...'.PHP_EOL, $tester->getDisplay());
+    }
+
+    /**
+     * @expectedException InvalidArgumentException
+     * @expectedExceptionMessage Invalid callable provided to Command::setCode.
+     */
+    public function testSetCodeWithNonCallable()
+    {
+        $command = new \TestCommand();
+        $command->setCode(array($this, 'nonExistentMethod'));
+    }
+
+    public function callableMethodCommand(InputInterface $input, OutputInterface $output)
+    {
+        $output->writeln('from the code...');
     }
 
     public function testAsText()
